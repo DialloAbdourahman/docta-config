@@ -1,7 +1,7 @@
-import { EnumStatusCode, ValidateInfo } from "docta-package";
-import { NotFoundError } from "docta-package";
+import { ValidateInfo } from "docta-package";
 import { IDoctorDocument, DoctorModel } from "docta-package";
 import { DoctorOutputDto, DoctorFilterDto } from "docta-package";
+import { UserModel } from "docta-package";
 
 export class DoctorService {
   public getDoctorBySlug = async (slug: string): Promise<DoctorOutputDto> => {
@@ -63,6 +63,22 @@ export class DoctorService {
     // Handle expertises array
     if (filters.expertises && filters.expertises.length > 0) {
       query.expertises = { $in: filters.expertises };
+    }
+
+    // Handle email filter by querying users first
+    if (filters.email) {
+      const users = await UserModel.find({
+        email: { $regex: filters.email, $options: "i" },
+      }).select("_id");
+
+      const userIds = users.map((u) => u._id);
+
+      // If no users found with this email, return empty result
+      if (userIds.length === 0) {
+        return { items: [], totalItems: 0 };
+      }
+
+      query.user = { $in: userIds };
     }
 
     // Calculate pagination
