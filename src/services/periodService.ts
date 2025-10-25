@@ -127,8 +127,6 @@ export class PeriodService {
   };
 }
 
-// Add this project to git.
-// Add a route that will allow a user to get a doctor's information with his slug.
 // Add a route that will allow a user to search through doctors (With custome filters and pagination)
 // Add a route that will list all the available periods of a doctor on a give time frame (start time and end time) of a simple user.
 // Add the same above route for te doctor (display already selected times and also some additional information such as the session info in the future and the payment information maybe.)
