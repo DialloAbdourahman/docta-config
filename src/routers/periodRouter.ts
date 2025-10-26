@@ -24,6 +24,22 @@ class PeriodRouter {
       validationMiddleware(CreatePeriodDto),
       this.controller.createPeriod
     );
+
+    this.router.get(
+      "/doctor/me",
+      requireAuth,
+      verifyRoles([EnumUserRole.DOCTOR]),
+      this.controller.getMyPeriods
+    );
+
+    this.router.get("/doctor/:doctorId", this.controller.getPeriodsByDoctor);
+
+    this.router.delete(
+      "/doctor/me/:periodId",
+      requireAuth,
+      verifyRoles([EnumUserRole.DOCTOR]),
+      this.controller.deleteMyAvailablePeriod
+    );
   }
 }
 

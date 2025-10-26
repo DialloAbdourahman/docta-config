@@ -9,6 +9,7 @@ import { LoggedInUserTokenData } from "docta-package";
 import { PeriodModel } from "docta-package";
 import { CreatePeriodDto } from "docta-package";
 import { PeriodOutputDto } from "docta-package";
+import { PeriodDoctorOutputDto } from "docta-package";
 import { DoctorModel } from "docta-package";
 import { NotFoundError } from "docta-package";
 import { PeriodUtils } from "../utils/period.utils";
@@ -86,9 +87,84 @@ export class PeriodService {
 
     return new PeriodOutputDto(period);
   };
+
+  public getPeriodsByDoctorAndTimeRange = async (
+    doctorId: string,
+    startTime: number,
+    endTime: number
+  ): Promise<PeriodOutputDto[]> => {
+    // Verify the doctor exists
+    const doctorDoc = (await DoctorModel.findById(doctorId)) as IDoctorDocument;
+    ValidateInfo.validateDoctor(doctorDoc);
+
+    // Query periods for the doctor within the time range (public: only available)
+    const periods = await PeriodModel.find({
+      doctor: doctorId,
+      startTime: { $gte: startTime },
+      endTime: { $lte: endTime },
+      isDeleted: false,
+      status: PeriodStatus.Available,
+    }).sort({ startTime: 1 });
+
+    return periods.map((p) => new PeriodOutputDto(p));
+  };
+
+  public getMyPeriodsByTimeRange = async (
+    user: LoggedInUserTokenData,
+    startTime: number,
+    endTime: number
+  ): Promise<PeriodDoctorOutputDto[]> => {
+    // Find doctor by the logged-in user's id
+    const doctorDoc = (await DoctorModel.findOne({
+      user: user.id,
+    })) as IDoctorDocument;
+    ValidateInfo.validateDoctor(doctorDoc);
+
+    console.log("data");
+    console.log(String(doctorDoc._id));
+
+    const periods = await PeriodModel.find({
+      doctor: String(doctorDoc._id),
+      startTime: { $gte: startTime },
+      endTime: { $lte: endTime },
+      isDeleted: false,
+    }).sort({ startTime: 1 });
+
+    return periods.map((p) => new PeriodDoctorOutputDto(p));
+  };
+
+  public deleteMyAvailablePeriod = async (
+    user: LoggedInUserTokenData,
+    periodId: string
+  ): Promise<void> => {
+    // Find doctor by the logged-in user's id and validate
+    const doctorDoc = (await DoctorModel.findOne({
+      user: user.id,
+    })) as IDoctorDocument;
+    ValidateInfo.validateDoctor(doctorDoc);
+
+    // Find the period that belongs to the doctor and is still available
+    const period = await PeriodModel.findOne({
+      _id: periodId,
+      doctor: String(doctorDoc._id),
+      isDeleted: false,
+      status: PeriodStatus.Available,
+    });
+
+    if (!period) {
+      throw new NotFoundError(
+        EnumStatusCode.NOT_FOUND,
+        "Period not found or not available"
+      );
+    }
+
+    // Soft delete
+    period.isDeleted = true;
+    period.deletedAt = Date.now();
+    // @ts-ignore - model expects a user ref; we set id
+    period.deletedBy = user.id as any;
+    await period.save();
+  };
 }
 
-// Add a route that will list all the available periods of a doctor on a given time frame (start time and end time) of a simple user.
-// Add the same above route for te doctor (display already selected times and also some additional information such as the session info in the future and the payment information maybe.)
-// Add a route that will allow the doctor to delete a period if it is not occupied yet (soft delete).
 // Start looking at reserving a session and the payment part.
