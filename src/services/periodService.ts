@@ -19,8 +19,8 @@ export class PeriodService {
     doctor: LoggedInUserTokenData
   ): Promise<PeriodOutputDto> => {
     // Verify the doctor exists
-    const doctorDoc = (await DoctorModel.findById(
-      dto.doctorId
+    const doctorDoc = (await DoctorModel.findById(dto.doctorId).populate(
+      "user"
     )) as IDoctorDocument;
     if (!doctorDoc) {
       throw new NotFoundError(EnumStatusCode.NOT_FOUND, "Doctor not found");
@@ -42,7 +42,11 @@ export class PeriodService {
     }
 
     // Make sure it is the same day
-    const isSameDay = PeriodUtils.isSameDayInZone(dto.startTime, dto.endTime);
+    const isSameDay = PeriodUtils.isSameDayInZone(
+      dto.startTime,
+      dto.endTime,
+      doctorDoc.user.timezone
+    );
     if (!isSameDay) {
       throw new BadRequestError(EnumStatusCode.NOT_SAME_DAY, "Not same day");
     }

@@ -65,7 +65,7 @@ export class PeriodUtils {
   public static isSameDayInZone = (
     startTime: number,
     endTime: number,
-    timeZone: string = config.doctorTimeZone
+    timeZone: string
   ): boolean => {
     const start = toZonedTime(startTime, timeZone);
     const end = toZonedTime(endTime, timeZone);
