@@ -13,7 +13,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "docta-package": "^1.2.37",
+    "docta-package": "^1.2.39",
     "dotenv": "^16.5.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1"

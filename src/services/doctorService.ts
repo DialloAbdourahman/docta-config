@@ -11,7 +11,8 @@ export class DoctorService {
       isDeleted: false,
     })
       .populate("user")
-      .populate("specialty")) as IDoctorDocument;
+      .populate("specialty")
+      .populate("expertises")) as IDoctorDocument;
 
     ValidateInfo.validateDoctor(doctor);
 
@@ -90,7 +91,8 @@ export class DoctorService {
         .skip(skip)
         .limit(itemsPerPage)
         .populate("user")
-        .populate("specialty"),
+        .populate("specialty")
+        .populate("expertises"),
       DoctorModel.countDocuments(query),
     ]);
 

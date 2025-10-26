@@ -1,10 +1,25 @@
-import { ISpecialtyDocument, SpecialtyModel } from "docta-package";
+import {
+  ISpecialtyDocument,
+  SpecialtyModel,
+  IExpertiseDocument,
+  ExpertiseModel,
+} from "docta-package";
 
 import { EnumStatusCode } from "docta-package";
 import { NotFoundError } from "docta-package";
 import { LoggedInUserTokenData } from "docta-package";
-import { CreateSpecialtyDto, UpdateSpecialtyDto } from "docta-package";
-import { SpecialtyAdminOutputDto, SpecialtyOutputDto } from "docta-package";
+import {
+  CreateSpecialtyDto,
+  UpdateSpecialtyDto,
+  CreateExpertiseDto,
+  UpdateExpertiseDto,
+} from "docta-package";
+import {
+  SpecialtyAdminOutputDto,
+  SpecialtyOutputDto,
+  ExpertiseAdminOutputDto,
+  ExpertiseOutputDto,
+} from "docta-package";
 
 export class AdminService {
   public createSpecialty = async (
@@ -91,6 +106,94 @@ export class AdminService {
     ]);
     const items = (docs as ISpecialtyDocument[]).map(
       (s) => new SpecialtyAdminOutputDto(s)
+    );
+    return { items, totalItems };
+  };
+
+  public createExpertise = async (
+    dto: CreateExpertiseDto,
+    admin: LoggedInUserTokenData
+  ): Promise<ExpertiseOutputDto> => {
+    const expertise = new ExpertiseModel({
+      en: dto.en,
+      fr: dto.fr ?? null,
+      createdBy: admin.id,
+    });
+    await expertise.save();
+    return new ExpertiseOutputDto(expertise as IExpertiseDocument);
+  };
+
+  public updateExpertise = async (
+    id: string,
+    dto: UpdateExpertiseDto,
+    admin: LoggedInUserTokenData
+  ): Promise<ExpertiseOutputDto> => {
+    const expertise = (await ExpertiseModel.findById(
+      id
+    )) as IExpertiseDocument | null;
+    if (!expertise) {
+      throw new NotFoundError(
+        EnumStatusCode.EXPERTISE_NOT_FOUND,
+        "Expertise not found"
+      );
+    }
+
+    // Update localized fields if provided
+    if (dto.en) {
+      expertise.en.name = dto.en.name ?? expertise.en.name;
+      expertise.en.description = dto.en.description ?? expertise.en.description;
+    }
+    if (dto.fr) {
+      if (!expertise.fr) expertise.fr = { name: "", description: null } as any;
+      expertise.fr!.name = dto.fr.name ?? expertise.fr!.name;
+      expertise.fr!.description =
+        dto.fr.description ?? expertise.fr!.description;
+    }
+
+    expertise.updatedBy = admin.id as any;
+    await expertise.save();
+    return new ExpertiseOutputDto(expertise);
+  };
+
+  public deleteExpertise = async (
+    id: string,
+    admin: LoggedInUserTokenData
+  ): Promise<void> => {
+    const expertise = (await ExpertiseModel.findById(
+      id
+    )) as IExpertiseDocument | null;
+    if (!expertise) {
+      throw new NotFoundError(
+        EnumStatusCode.EXPERTISE_NOT_FOUND,
+        "Expertise not found"
+      );
+    }
+    expertise.isDeleted = true;
+    expertise.deletedAt = Date.now();
+    expertise.deletedBy = admin.id as any;
+    await expertise.save();
+  };
+
+  public listExpertises = async (
+    page: number,
+    itemsPerPage: number
+  ): Promise<{
+    items: ExpertiseAdminOutputDto[];
+    totalItems: number;
+  }> => {
+    const filter = { isDeleted: false };
+    const skip = (page - 1) * itemsPerPage;
+    const [docs, totalItems] = await Promise.all([
+      ExpertiseModel.find(filter)
+        .skip(skip)
+        .limit(itemsPerPage)
+        .populate("createdBy")
+        .populate("updatedBy")
+        .populate("deletedBy"),
+      ExpertiseModel.countDocuments(filter),
+    ]);
+    const items = (docs as IExpertiseDocument[]).map(
+      (e) => new ExpertiseAdminOutputDto(e)
     );
     return { items, totalItems };
   };

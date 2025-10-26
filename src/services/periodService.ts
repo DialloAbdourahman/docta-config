@@ -127,6 +127,7 @@ export class PeriodService {
   };
 }
 
+// Make sure that when adding a period, it should be the exact same day, not 23:30 - 00:30
 // The expertieses should be a table instead.
 // Add a route that will list all the available periods of a doctor on a give time frame (start time and end time) of a simple user.
 // Add the same above route for te doctor (display already selected times and also some additional information such as the session info in the future and the payment information maybe.)
