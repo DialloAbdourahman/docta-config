@@ -9,6 +9,7 @@ interface Config {
   accessTokenSecret: string;
   refreshTokenSecret: string;
   rabbitmqHost: string;
+  doctorTimeZone: string;
 }
 
 export const config: Config = {
@@ -18,4 +19,5 @@ export const config: Config = {
   accessTokenSecret: String(process.env.ACCESS_TOKEN_SECRET),
   refreshTokenSecret: String(process.env.REFRESH_TOKEN_SECRET),
   rabbitmqHost: String(process.env.RABBITMQ_HOST),
+  doctorTimeZone: String(process.env.DOCTOR_TIMEZONE),
 };

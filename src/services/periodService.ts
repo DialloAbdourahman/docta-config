@@ -11,6 +11,7 @@ import { CreatePeriodDto } from "docta-package";
 import { PeriodOutputDto } from "docta-package";
 import { DoctorModel } from "docta-package";
 import { NotFoundError } from "docta-package";
+import { PeriodUtils } from "../utils/period.utils";
 
 export class PeriodService {
   public createPeriod = async (
@@ -29,7 +30,10 @@ export class PeriodService {
     ValidateInfo.validateDoctor(doctorDoc);
 
     // Make sure that we have a valid time gap
-    const isValidTimeGap = this.isValidTimeGap(dto.startTime, dto.endTime);
+    const isValidTimeGap = PeriodUtils.isValidTimeGap(
+      dto.startTime,
+      dto.endTime
+    );
     if (!isValidTimeGap) {
       throw new BadRequestError(
         EnumStatusCode.INVALID_TIME_GAP,
@@ -37,8 +41,17 @@ export class PeriodService {
       );
     }
 
+    // Make sure it is the same day
+    const isSameDay = PeriodUtils.isSameDayInZone(dto.startTime, dto.endTime);
+    if (!isSameDay) {
+      throw new BadRequestError(EnumStatusCode.NOT_SAME_DAY, "Not same day");
+    }
+
     // Make sure that the time is bold
-    if (!this.isBoldTime(dto.startTime) || !this.isBoldTime(dto.endTime)) {
+    if (
+      !PeriodUtils.isBoldTime(dto.startTime) ||
+      !PeriodUtils.isBoldTime(dto.endTime)
+    ) {
       throw new BadRequestError(
         EnumStatusCode.BOLD_TIME_ERROR,
         "Time is not bold"
@@ -46,7 +59,7 @@ export class PeriodService {
     }
 
     // Make sure that there is no overlap in db.
-    const isExistingOverlap = await this.checkPeriodOverlap(
+    const isExistingOverlap = await PeriodUtils.checkPeriodOverlap(
       String(doctorDoc._id),
       dto.startTime,
       dto.endTime
@@ -69,67 +82,9 @@ export class PeriodService {
 
     return new PeriodOutputDto(period);
   };
-
-  private isValidTimeGap = (startTime: number, endTime: number): boolean => {
-    // Ensure startTime < endTime
-    if (endTime <= startTime) return false;
-
-    // Allowed gaps in minutes
-    const allowedGaps = [30, 60, 90, 120];
-
-    // Convert milliseconds to minutes
-    const diffInMinutes = (endTime - startTime) / (1000 * 60);
-
-    // Check if difference matches any allowed gap
-    return allowedGaps.includes(diffInMinutes);
-  };
-
-  private checkPeriodOverlap = async (
-    doctorId: string,
-    startTime: number,
-    endTime: number
-  ): Promise<boolean> => {
-    const overlappingPeriod = await PeriodModel.findOne({
-      doctor: doctorId,
-      isDeleted: false,
-      $or: [
-        {
-          // New start is inside an existing period
-          startTime: { $lte: startTime },
-          endTime: { $gt: startTime },
-        },
-        {
-          // New end is inside an existing period
-          startTime: { $lt: endTime },
-          endTime: { $gte: endTime },
-        },
-        {
-          // New period fully covers an existing one
-          startTime: { $gte: startTime },
-          endTime: { $lte: endTime },
-        },
-      ],
-    });
-
-    return !!overlappingPeriod;
-  };
-
-  private isBoldTime = (timestamp: number): boolean => {
-    const date = new Date(timestamp);
-    const minutes = date.getMinutes();
-    const seconds = date.getSeconds();
-    const milliseconds = date.getMilliseconds();
-
-    // Must be on exact 0 or 30-minute marks, with no seconds or milliseconds
-    return (
-      (minutes === 0 || minutes === 30) && seconds === 0 && milliseconds === 0
-    );
-  };
 }
 
-// Make sure that when adding a period, it should be the exact same day, not 23:30 - 00:30
-// The expertieses should be a table instead.
-// Add a route that will list all the available periods of a doctor on a give time frame (start time and end time) of a simple user.
+// Add a route that will list all the available periods of a doctor on a given time frame (start time and end time) of a simple user.
 // Add the same above route for te doctor (display already selected times and also some additional information such as the session info in the future and the payment information maybe.)
 // Add a route that will allow the doctor to delete a period if it is not occupied yet (soft delete).
 // Start looking at reserving a session and the payment part.
