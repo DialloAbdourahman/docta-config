@@ -15,6 +15,7 @@ import {
 import { IDoctorDocument, DoctorModel } from "docta-package";
 import { LoggedInUserTokenData } from "docta-package";
 import { config } from "../config";
+import { PeriodUtils } from "../utils/period.utils";
 
 export class SessionService {
   public bookSession = async (
@@ -50,9 +51,9 @@ export class SessionService {
         "Period occupied"
       );
     }
-    // if (period.startTime < Date.now()) {
-    //   throw new BadRequestError(EnumStatusCode.PERIOD_PASSED, "Period passed");
-    // }
+    if (period.startTime < Date.now()) {
+      throw new BadRequestError(EnumStatusCode.PERIOD_PASSED, "Period passed");
+    }
 
     // Get the doctor
     const doctor: IDoctorDocument | null = (await DoctorModel.findOne({
@@ -63,8 +64,8 @@ export class SessionService {
     ValidateInfo.validateDoctor(doctor);
 
     const { totalPrice, paymentApiPrice, platformPrice, doctorPrice } =
-      this.calculateSessionPrice({
-        doctorPrice: doctor.consultationFee,
+      PeriodUtils.calculateSessionPrice({
+        consultationFeePerHour: doctor.consultationFeePerHour,
         startTime: period.startTime,
         endTime: period.endTime,
         initialConfig: {
@@ -83,7 +84,9 @@ export class SessionService {
       doctorPrice,
       platformPrice,
       paymentApiPrice,
-      config: {
+      meta: {
+        originalDoctorConsultationFeePerHour: doctor.consultationFeePerHour,
+        platformPercentage: config.platformPercentage,
         collectionPercentage: config.collectionPercentage,
         disbursementPercentage: config.disbursementPercentage,
       },
@@ -98,61 +101,5 @@ export class SessionService {
     await period.save();
 
     return new SessionPatientOutputDto(session);
-  };
-
-  private calculateSessionPrice = ({
-    doctorPrice, // price per hour
-    startTime,
-    endTime,
-    initialConfig,
-  }: {
-    startTime: number;
-    endTime: number;
-    doctorPrice: number; // price per hour
-    initialConfig: {
-      platformPercentage: number;
-      collectionPercentage: number;
-      disbursementPercentage: number;
-    };
-  }): {
-    totalPrice: number;
-    paymentApiPrice: number;
-    platformPrice: number;
-    doctorPrice: number;
-  } => {
-    // --- 1️⃣ Calculate session duration in hours ---
-    const durationMs = endTime - startTime;
-    const durationHours = durationMs / (1000 * 60 * 60); // convert ms → hours
-
-    // --- 2️⃣ Compute doctor’s total price for this session ---
-    const doctorPriceWithPeriodIncluded = doctorPrice * durationHours;
-
-    // --- 3️⃣ Extract fee percentages ---
-    const platformPct = initialConfig.platformPercentage / 100;
-    const collectionPct = initialConfig.collectionPercentage / 100;
-    const disbursementPct = initialConfig.disbursementPercentage / 100;
-
-    // --- 4️⃣ Platform share ---
-    const platformPrice = Math.ceil(
-      doctorPriceWithPeriodIncluded * platformPct
-    );
-
-    // --- 5️⃣ Subtotal (doctor + platform) ---
-    const subtotal = doctorPriceWithPeriodIncluded + platformPrice;
-
-    // --- 6️⃣ Apply collection + disbursement on subtotal ---
-    const totalFeePct = collectionPct + disbursementPct;
-    const totalFees = Math.ceil(subtotal * totalFeePct);
-
-    // --- 7️⃣ Final total the patient pays ---
-    const totalPrice = Math.ceil(subtotal + totalFees);
-
-    // --- 8️⃣ Return results ---
-    return {
-      totalPrice,
-      paymentApiPrice: totalFees,
-      platformPrice,
-      doctorPrice: Math.ceil(doctorPriceWithPeriodIncluded),
-    };
   };
 }
