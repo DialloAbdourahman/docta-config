@@ -16,6 +16,7 @@ import { IDoctorDocument, DoctorModel } from "docta-package";
 import { LoggedInUserTokenData } from "docta-package";
 import { config } from "../config";
 import { PeriodUtils } from "../utils/period.utils";
+import mongoose from "mongoose";
 
 export class SessionService {
   public bookSession = async (
@@ -80,10 +81,12 @@ export class SessionService {
       period: period,
       patient: patient,
       doctor: doctor,
-      totalPrice,
-      doctorPrice,
-      platformPrice,
-      paymentApiPrice,
+      pricing: {
+        totalPrice,
+        doctorPrice,
+        platformPrice,
+        paymentApiPrice,
+      },
       meta: {
         originalDoctorConsultationFeePerHour: doctor.consultationFeePerHour,
         platformPercentage: config.platformPercentage,
@@ -94,11 +97,21 @@ export class SessionService {
 
     // Update the period
     period.status = PeriodStatus.Occupied;
-    // period.session = session
 
     // Save data
-    await session.save();
-    await period.save();
+    const sessionTransaction = await mongoose.startSession();
+    sessionTransaction.startTransaction();
+
+    try {
+      await session.save({ session: sessionTransaction });
+      await period.save({ session: sessionTransaction });
+      await sessionTransaction.commitTransaction();
+      sessionTransaction.endSession();
+    } catch (error) {
+      await sessionTransaction.abortTransaction();
+      sessionTransaction.endSession();
+      throw error;
+    }
 
     return new SessionPatientOutputDto(session);
   };
