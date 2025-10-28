@@ -9,6 +9,9 @@ interface Config {
   accessTokenSecret: string;
   refreshTokenSecret: string;
   rabbitmqHost: string;
+  platformPercentage: number;
+  collectionPercentage: number;
+  disbursementPercentage: number;
 }
 
 export const config: Config = {
@@ -18,4 +21,7 @@ export const config: Config = {
   accessTokenSecret: String(process.env.ACCESS_TOKEN_SECRET),
   refreshTokenSecret: String(process.env.REFRESH_TOKEN_SECRET),
   rabbitmqHost: String(process.env.RABBITMQ_HOST),
+  platformPercentage: Number(process.env.PLATFORM_PERCENTAGE),
+  collectionPercentage: Number(process.env.COLLECTION_PERCENTAGE),
+  disbursementPercentage: Number(process.env.DISTRIBUTION_PERCENTAGE),
 };
