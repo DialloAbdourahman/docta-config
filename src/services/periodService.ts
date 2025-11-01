@@ -17,17 +17,12 @@ import { PeriodUtils } from "../utils/period.utils";
 export class PeriodService {
   public createPeriod = async (
     dto: CreatePeriodDto,
-    doctor: LoggedInUserTokenData
+    user: LoggedInUserTokenData
   ): Promise<PeriodOutputDto> => {
     // Verify the doctor exists
-    const doctorDoc = (await DoctorModel.findById(dto.doctorId).populate(
-      "user"
-    )) as IDoctorDocument;
-    if (!doctorDoc) {
-      throw new NotFoundError(EnumStatusCode.NOT_FOUND, "Doctor not found");
-    }
-
-    // Call the validate doctor here instead
+    const doctorDoc = (await DoctorModel.findOne({
+      user: user.id,
+    })) as IDoctorDocument;
     ValidateInfo.validateDoctor(doctorDoc);
 
     // Make sure that we have a valid time gap
@@ -81,7 +76,7 @@ export class PeriodService {
       startTime: dto.startTime,
       endTime: dto.endTime,
       status: PeriodStatus.Available,
-      createdBy: doctor.id,
+      createdBy: doctorDoc.user,
     });
     await period.save();
 

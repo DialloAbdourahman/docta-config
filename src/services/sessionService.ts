@@ -9,6 +9,7 @@ import {
   PatientModel,
   PeriodModel,
   PeriodStatus,
+  SessionDoctorOutputDto,
   SessionModel,
   SessionPatientOutputDto,
   ValidateInfo,
@@ -53,9 +54,10 @@ export class SessionService {
         "Period occupied"
       );
     }
-    if (period.startTime < Date.now()) {
-      throw new BadRequestError(EnumStatusCode.PERIOD_PASSED, "Period passed");
-    }
+
+    // if (period.startTime < Date.now()) {
+    //   throw new BadRequestError(EnumStatusCode.PERIOD_PASSED, "Period passed");
+    // }
 
     // Get the doctor
     const doctor: IDoctorDocument | null = (await DoctorModel.findOne({
@@ -114,6 +116,8 @@ export class SessionService {
       throw error;
     }
 
+    console.log(session);
+
     return new SessionPatientOutputDto(session);
   };
 
@@ -134,7 +138,7 @@ export class SessionService {
     }
 
     // Get the session
-    const session: ISessionDocument | null = await SessionModel.findById({
+    const session: ISessionDocument | null = await SessionModel.findOne({
       _id: sessionId,
       patient: patient,
     }).populate("period");
@@ -160,46 +164,162 @@ export class SessionService {
     const patient: IPatientDocument | null = await PatientModel.findOne({
       user: user.id,
       isDeleted: false,
-    }).populate("user");
+    });
     if (!patient) {
       throw new NotFoundError(
         EnumStatusCode.PATIENT_NOT_FOUND,
         "Patient not found"
       );
     }
+
     const filter = { patient: patient._id };
     const skip = (page - 1) * itemsPerPage;
-    // const [docs, totalItems] = await Promise.all([
-    //   SessionModel.find(filter)
-    //     .skip(skip)
-    //     .limit(itemsPerPage)
-    //     .populate("period"),
 
-    //   SessionModel.countDocuments(filter),
-    // ]);
-    const [docs, totalItems] = await Promise.all([
-      SessionModel.aggregate([
-        { $match: filter },
-        {
-          $lookup: {
-            from: "periods",
-            localField: "period",
-            foreignField: "_id",
-            as: "period",
-          },
+    const aggregationPipeline: any[] = [
+      { $match: filter },
+      {
+        $lookup: {
+          from: "periods",
+          localField: "period",
+          foreignField: "_id",
+          as: "period",
         },
-        { $unwind: "$period" },
-        { $sort: { "period.startTime": 1 } },
+      },
+      { $unwind: "$period" },
+      { $sort: { "period.startTime": 1 } },
+    ];
+
+    const [docs, countResult] = await Promise.all([
+      SessionModel.aggregate([
+        ...aggregationPipeline,
         { $skip: skip },
         { $limit: itemsPerPage },
       ]),
-
-      SessionModel.countDocuments(filter),
+      SessionModel.aggregate([
+        ...aggregationPipeline,
+        { $count: "totalItems" },
+      ]),
     ]);
+
+    const totalItems = countResult[0]?.totalItems ?? 0;
 
     const items = (docs as ISessionDocument[]).map(
       (s) => new SessionPatientOutputDto(s)
     );
+
+    return { items, totalItems };
+  };
+
+  public getDoctorSession = async (
+    sessionId: string,
+    user: LoggedInUserTokenData
+  ): Promise<SessionDoctorOutputDto> => {
+    // Verify the doctor exists
+    const doctorDoc = (await DoctorModel.findOne({
+      user: user.id,
+    })) as IDoctorDocument;
+    ValidateInfo.validateDoctor(doctorDoc);
+
+    // Get the session
+    const session: ISessionDocument | null = await SessionModel.findOne({
+      _id: sessionId,
+      doctor: doctorDoc,
+    })
+      .populate("period")
+      .populate("patient")
+      .populate({
+        path: "patient",
+        populate: { path: "user" },
+      });
+
+    if (!session) {
+      throw new NotFoundError(EnumStatusCode.NOT_FOUND, "Session not found");
+    }
+
+    return new SessionDoctorOutputDto(session);
+  };
+
+  public getDoctorSessionsPaginated = async (
+    page: number,
+    itemsPerPage: number,
+    user: LoggedInUserTokenData
+  ): Promise<{
+    items: SessionDoctorOutputDto[];
+    totalItems: number;
+  }> => {
+    // Verify the doctor exists
+    const doctorDoc = (await DoctorModel.findOne({
+      user: user.id,
+    })) as IDoctorDocument;
+    ValidateInfo.validateDoctor(doctorDoc);
+
+    const skip = (page - 1) * itemsPerPage;
+
+    const filter = { doctor: doctorDoc._id };
+
+    const aggregationPipeline: any[] = [
+      { $match: filter },
+
+      // Join period
+      {
+        $lookup: {
+          from: "periods",
+          localField: "period",
+          foreignField: "_id",
+          as: "period",
+        },
+      },
+      { $unwind: "$period" },
+
+      // Join patient
+      {
+        $lookup: {
+          from: "patients",
+          let: { patientId: "$patient" }, // reference session's patient
+          pipeline: [
+            { $match: { $expr: { $eq: ["$_id", "$$patientId"] } } },
+
+            // Join user inside patient
+            {
+              $lookup: {
+                from: "users",
+                let: { userId: "$user" },
+                pipeline: [
+                  { $match: { $expr: { $eq: ["$_id", "$$userId"] } } },
+                ],
+                as: "user",
+              },
+            },
+            { $unwind: "$user" }, // unwind user inside patient
+          ],
+          as: "patient",
+        },
+      },
+      { $unwind: "$patient" }, // unwind patient
+
+      { $sort: { "period.startTime": 1 } },
+    ];
+
+    const [docs, countResult] = await Promise.all([
+      SessionModel.aggregate([
+        ...aggregationPipeline,
+        { $skip: skip },
+        { $limit: itemsPerPage },
+      ]),
+      SessionModel.aggregate([
+        ...aggregationPipeline,
+        { $count: "totalItems" },
+      ]),
+    ]);
+
+    console.log(docs);
+
+    const totalItems = countResult[0]?.totalItems ?? 0;
+
+    const items = (docs as ISessionDocument[]).map(
+      (s) => new SessionDoctorOutputDto(s)
+    );
+
     return { items, totalItems };
   };
 }

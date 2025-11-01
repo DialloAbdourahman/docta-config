@@ -28,10 +28,24 @@ class SessionRouter {
     );
 
     this.router.get(
+      "/doctor",
+      requireAuth,
+      verifyRoles([EnumUserRole.DOCTOR]),
+      this.controller.getDoctorSessionsPaginated
+    );
+
+    this.router.get(
       "/patient/:sessionId",
       requireAuth,
       verifyRoles([EnumUserRole.PATIENT]),
       this.controller.getPatientSession
+    );
+
+    this.router.get(
+      "/doctor/:sessionId",
+      requireAuth,
+      verifyRoles([EnumUserRole.DOCTOR]),
+      this.controller.getDoctorSession
     );
   }
 }
