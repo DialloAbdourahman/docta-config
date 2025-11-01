@@ -3,6 +3,7 @@ import {
   EnumStatusCode,
   IPatientDocument,
   IPeriodDocument,
+  ISession,
   ISessionDocument,
   NotFoundError,
   PatientModel,
@@ -114,5 +115,91 @@ export class SessionService {
     }
 
     return new SessionPatientOutputDto(session);
+  };
+
+  public getPatientSession = async (
+    sessionId: string,
+    user: LoggedInUserTokenData
+  ): Promise<SessionPatientOutputDto> => {
+    // Get the patient
+    const patient: IPatientDocument | null = await PatientModel.findOne({
+      user: user.id,
+      isDeleted: false,
+    }).populate("user");
+    if (!patient) {
+      throw new NotFoundError(
+        EnumStatusCode.PATIENT_NOT_FOUND,
+        "Patient not found"
+      );
+    }
+
+    // Get the session
+    const session: ISessionDocument | null = await SessionModel.findById({
+      _id: sessionId,
+      patient: patient,
+    }).populate("period");
+
+    console.log(session);
+
+    if (!session) {
+      throw new NotFoundError(EnumStatusCode.NOT_FOUND, "Session not found");
+    }
+
+    return new SessionPatientOutputDto(session);
+  };
+
+  public getPatientSessionsPaginated = async (
+    page: number,
+    itemsPerPage: number,
+    user: LoggedInUserTokenData
+  ): Promise<{
+    items: SessionPatientOutputDto[];
+    totalItems: number;
+  }> => {
+    // Get the patient
+    const patient: IPatientDocument | null = await PatientModel.findOne({
+      user: user.id,
+      isDeleted: false,
+    }).populate("user");
+    if (!patient) {
+      throw new NotFoundError(
+        EnumStatusCode.PATIENT_NOT_FOUND,
+        "Patient not found"
+      );
+    }
+    const filter = { patient: patient._id };
+    const skip = (page - 1) * itemsPerPage;
+    // const [docs, totalItems] = await Promise.all([
+    //   SessionModel.find(filter)
+    //     .skip(skip)
+    //     .limit(itemsPerPage)
+    //     .populate("period"),
+
+    //   SessionModel.countDocuments(filter),
+    // ]);
+    const [docs, totalItems] = await Promise.all([
+      SessionModel.aggregate([
+        { $match: filter },
+        {
+          $lookup: {
+            from: "periods",
+            localField: "period",
+            foreignField: "_id",
+            as: "period",
+          },
+        },
+        { $unwind: "$period" },
+        { $sort: { "period.startTime": 1 } },
+        { $skip: skip },
+        { $limit: itemsPerPage },
+      ]),
+
+      SessionModel.countDocuments(filter),
+    ]);
+
+    const items = (docs as ISessionDocument[]).map(
+      (s) => new SessionPatientOutputDto(s)
+    );
+    return { items, totalItems };
   };
 }

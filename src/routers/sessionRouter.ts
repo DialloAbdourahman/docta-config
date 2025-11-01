@@ -19,6 +19,20 @@ class SessionRouter {
       verifyRoles([EnumUserRole.PATIENT]),
       this.controller.bookSession
     );
+
+    this.router.get(
+      "/patient",
+      requireAuth,
+      verifyRoles([EnumUserRole.PATIENT]),
+      this.controller.getPatientSessionsPaginated
+    );
+
+    this.router.get(
+      "/patient/:sessionId",
+      requireAuth,
+      verifyRoles([EnumUserRole.PATIENT]),
+      this.controller.getPatientSession
+    );
   }
 }
 
