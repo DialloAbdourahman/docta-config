@@ -7,6 +7,7 @@ import {
   ISessionDocument,
   NotFoundError,
   PatientModel,
+  PatientPublicOutputDto,
   PeriodModel,
   PeriodStatus,
   SessionDoctorOutputDto,
@@ -129,7 +130,7 @@ export class SessionService {
     const patient: IPatientDocument | null = await PatientModel.findOne({
       user: user.id,
       isDeleted: false,
-    }).populate("user");
+    });
     if (!patient) {
       throw new NotFoundError(
         EnumStatusCode.PATIENT_NOT_FOUND,
@@ -143,11 +144,11 @@ export class SessionService {
       patient: patient,
     }).populate("period");
 
-    console.log(session);
-
     if (!session) {
       throw new NotFoundError(EnumStatusCode.NOT_FOUND, "Session not found");
     }
+
+    console.log(session);
 
     return new SessionPatientOutputDto(session);
   };
@@ -237,6 +238,32 @@ export class SessionService {
     }
 
     return new SessionDoctorOutputDto(session);
+  };
+
+  public getPatientFromSession = async (
+    sessionId: string,
+    user: LoggedInUserTokenData
+  ): Promise<PatientPublicOutputDto> => {
+    // Verify the doctor exists
+    const doctorDoc = (await DoctorModel.findOne({
+      user: user.id,
+    })) as IDoctorDocument;
+    ValidateInfo.validateDoctor(doctorDoc);
+
+    // Get the session
+    const session: ISessionDocument | null = await SessionModel.findOne({
+      _id: sessionId,
+      doctor: doctorDoc,
+    }).populate({
+      path: "patient",
+      populate: { path: "user" }, // populate nested user
+    });
+
+    if (!session) {
+      throw new NotFoundError(EnumStatusCode.NOT_FOUND, "Session not found");
+    }
+
+    return new PatientPublicOutputDto(session.patient);
   };
 
   public getDoctorSessionsPaginated = async (

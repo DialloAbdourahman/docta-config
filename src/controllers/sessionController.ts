@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { SessionService } from "../services/sessionService";
 import {
   OrchestrationResult,
+  PatientPublicOutputDto,
   SessionDoctorOutputDto,
   SessionPatientOutputDto,
 } from "docta-package";
@@ -58,6 +59,24 @@ export class SessionController {
     );
     res.status(200).json(
       OrchestrationResult.item<SessionDoctorOutputDto>({
+        code: EnumStatusCode.RECOVERED_SUCCESSFULLY,
+        message: "Session created successfully.",
+        data: result,
+      })
+    );
+  };
+
+  public getPatientFromSession = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    const sessionId = req.params.sessionId;
+    const result = await this.sessionService.getPatientFromSession(
+      sessionId,
+      req.currentUser!
+    );
+    res.status(200).json(
+      OrchestrationResult.item<PatientPublicOutputDto>({
         code: EnumStatusCode.RECOVERED_SUCCESSFULLY,
         message: "Session created successfully.",
         data: result,

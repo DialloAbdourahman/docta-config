@@ -42,6 +42,13 @@ class SessionRouter {
     );
 
     this.router.get(
+      "/doctor/:sessionId/patient",
+      requireAuth,
+      verifyRoles([EnumUserRole.DOCTOR]),
+      this.controller.getPatientFromSession
+    );
+
+    this.router.get(
       "/doctor/:sessionId",
       requireAuth,
       verifyRoles([EnumUserRole.DOCTOR]),
