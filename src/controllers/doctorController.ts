@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { DoctorService } from "../services/doctorService";
 import { OrchestrationResult } from "docta-package";
 import { EnumStatusCode } from "docta-package";
-import { DoctorOutputDto, DoctorFilterDto } from "docta-package";
+import { DoctorPublicOutputDto, DoctorFilterDto } from "docta-package";
 
 export class DoctorController {
   private doctorService: DoctorService;
@@ -19,7 +19,7 @@ export class DoctorController {
     const result = await this.doctorService.getDoctorBySlug(slug);
 
     res.status(200).json(
-      OrchestrationResult.item<DoctorOutputDto>({
+      OrchestrationResult.item<DoctorPublicOutputDto>({
         code: EnumStatusCode.RECOVERED_SUCCESSFULLY,
         message: "Doctor profile fetched successfully.",
         data: result,
@@ -42,7 +42,7 @@ export class DoctorController {
     );
 
     res.status(200).json(
-      OrchestrationResult.paginated<DoctorOutputDto>({
+      OrchestrationResult.paginated<DoctorPublicOutputDto>({
         code: EnumStatusCode.RECOVERED_SUCCESSFULLY,
         message: "Doctors filtered successfully.",
         data: items,

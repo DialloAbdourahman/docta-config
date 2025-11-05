@@ -1,10 +1,12 @@
 import { ValidateInfo } from "docta-package";
 import { IDoctorDocument, DoctorModel } from "docta-package";
-import { DoctorOutputDto, DoctorFilterDto } from "docta-package";
+import { DoctorPublicOutputDto, DoctorFilterDto } from "docta-package";
 import { UserModel } from "docta-package";
 
 export class DoctorService {
-  public getDoctorBySlug = async (slug: string): Promise<DoctorOutputDto> => {
+  public getDoctorBySlug = async (
+    slug: string
+  ): Promise<DoctorPublicOutputDto> => {
     // Find doctor by slug
     const doctor: IDoctorDocument | null = (await DoctorModel.findOne({
       slug: slug,
@@ -16,7 +18,7 @@ export class DoctorService {
 
     ValidateInfo.validateDoctor(doctor);
 
-    return new DoctorOutputDto(doctor);
+    return new DoctorPublicOutputDto(doctor);
   };
 
   public filterDoctors = async (
@@ -24,7 +26,7 @@ export class DoctorService {
     page: number,
     itemsPerPage: number
   ): Promise<{
-    items: DoctorOutputDto[];
+    items: DoctorPublicOutputDto[];
     totalItems: number;
   }> => {
     // Build query with default filters
@@ -97,7 +99,7 @@ export class DoctorService {
     ]);
 
     const items = (docs as IDoctorDocument[]).map(
-      (doctor) => new DoctorOutputDto(doctor)
+      (doctor) => new DoctorPublicOutputDto(doctor)
     );
 
     return { items, totalItems };
