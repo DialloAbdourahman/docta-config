@@ -56,9 +56,9 @@ export class SessionService {
       );
     }
 
-    // if (period.startTime < Date.now()) {
-    //   throw new BadRequestError(EnumStatusCode.PERIOD_PASSED, "Period passed");
-    // }
+    if (Date.now() > period.startTime) {
+      throw new BadRequestError(EnumStatusCode.PERIOD_PASSED, "Period passed");
+    }
 
     // Get the doctor
     const doctor: IDoctorDocument | null = (await DoctorModel.findOne({
@@ -67,6 +67,17 @@ export class SessionService {
       isVisible: true,
     })) as IDoctorDocument;
     ValidateInfo.validateDoctor(doctor);
+
+    // Take into account the doctor's dontBookMeBeforeInMins attribute
+    if (
+      Date.now() + doctor.dontBookMeBeforeInMins * 60 * 1000 >
+      period.startTime
+    ) {
+      throw new BadRequestError(
+        EnumStatusCode.PERIOD_TOO_CLOSE_TO_START,
+        "Cannot book this period because it's too close to the start time"
+      );
+    }
 
     const { totalPrice, paymentApiPrice, platformPrice, doctorPrice } =
       PeriodUtils.calculateSessionPrice({

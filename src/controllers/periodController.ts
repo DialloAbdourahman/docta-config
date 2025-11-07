@@ -26,7 +26,7 @@ export class PeriodController {
     );
   };
 
-  public getPeriodsByDoctor = async (
+  public getPeriodsOfDoctor = async (
     req: Request,
     res: Response
   ): Promise<void> => {
@@ -41,7 +41,7 @@ export class PeriodController {
       return;
     }
 
-    const result = await this.periodService.getPeriodsByDoctorAndTimeRange(
+    const result = await this.periodService.getPeriodsOfDoctorAndTimeRange(
       doctorId,
       Number(startTime),
       Number(endTime)

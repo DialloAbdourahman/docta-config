@@ -83,7 +83,7 @@ export class PeriodService {
     return new PeriodOutputDto(period);
   };
 
-  public getPeriodsByDoctorAndTimeRange = async (
+  public getPeriodsOfDoctorAndTimeRange = async (
     doctorId: string,
     startTime: number,
     endTime: number
@@ -92,10 +92,17 @@ export class PeriodService {
     const doctorDoc = (await DoctorModel.findById(doctorId)) as IDoctorDocument;
     ValidateInfo.validateDoctor(doctorDoc);
 
+    // Calculate minimum start time based on doctor's booking notice requirement
+    const now = Date.now();
+    const dontBookMeBeforeInMs =
+      (doctorDoc.dontBookMeBeforeInMins || 0) * 60 * 1000;
+    const minStartTime = now + dontBookMeBeforeInMs;
+
     // Query periods for the doctor within the time range (public: only available)
+    // Only fetch periods that respect the doctor's minimum booking notice
     const periods = await PeriodModel.find({
       doctor: doctorId,
-      startTime: { $gte: startTime },
+      startTime: { $gte: Math.max(startTime, minStartTime) },
       endTime: { $lte: endTime },
       isDeleted: false,
       status: PeriodStatus.Available,

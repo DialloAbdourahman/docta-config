@@ -32,7 +32,7 @@ class PeriodRouter {
       this.controller.getMyPeriods
     );
 
-    this.router.get("/doctor/:doctorId", this.controller.getPeriodsByDoctor);
+    this.router.get("/doctor/:doctorId", this.controller.getPeriodsOfDoctor);
 
     this.router.delete(
       "/doctor/me/:periodId",
