@@ -7,7 +7,6 @@ interface Config {
   nodeEnv: string;
   mongoUri: string;
   accessTokenSecret: string;
-  refreshTokenSecret: string;
   rabbitmqHost: string;
   platformPercentage: number;
   collectionPercentage: number;
@@ -19,7 +18,6 @@ export const config: Config = {
   nodeEnv: String(process.env.NODE_ENV),
   mongoUri: String(process.env.MONGO_URI),
   accessTokenSecret: String(process.env.ACCESS_TOKEN_SECRET),
-  refreshTokenSecret: String(process.env.REFRESH_TOKEN_SECRET),
   rabbitmqHost: String(process.env.RABBITMQ_HOST),
   platformPercentage: Number(process.env.PLATFORM_PERCENTAGE),
   collectionPercentage: Number(process.env.COLLECTION_PERCENTAGE),
