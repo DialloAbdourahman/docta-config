@@ -141,4 +141,22 @@ export class SessionController {
       })
     );
   };
+
+  public cancelSessionByDoctor = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    const sessionId = req.params.sessionId;
+    const result = await this.sessionService.cancelSessionByDoctor(
+      sessionId,
+      req.currentUser!
+    );
+    res.status(200).json(
+      OrchestrationResult.item<SessionDoctorOutputDto>({
+        code: EnumStatusCode.UPDATED_SUCCESSFULLY,
+        message: "Session cancelled successfully.",
+        data: result,
+      })
+    );
+  };
 }

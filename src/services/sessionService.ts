@@ -1,18 +1,23 @@
 import {
   BadRequestError,
+  EnumRefundDirection,
   EnumStatusCode,
+  Exchanges,
+  InitiateRefundEvent,
   IPatientDocument,
   IPeriodDocument,
-  ISession,
   ISessionDocument,
   NotFoundError,
   PatientModel,
   PatientPublicOutputDto,
   PeriodModel,
   PeriodStatus,
+  publishToTopicExchange,
+  RoutingKey,
   SessionDoctorOutputDto,
   SessionModel,
   SessionPatientOutputDto,
+  SessionStatus,
   ValidateInfo,
 } from "docta-package";
 import { IDoctorDocument, DoctorModel } from "docta-package";
@@ -359,5 +364,103 @@ export class SessionService {
     );
 
     return { items, totalItems };
+  };
+
+  public cancelSessionByDoctor = async (
+    sessionId: string,
+    user: LoggedInUserTokenData
+  ): Promise<SessionDoctorOutputDto> => {
+    // Verify the doctor exists
+    const doctorDoc = (await DoctorModel.findOne({
+      user: user.id,
+    })) as IDoctorDocument;
+    ValidateInfo.validateDoctor(doctorDoc);
+
+    // Get the session with populated period
+    const session: ISessionDocument | null = await SessionModel.findOne({
+      _id: sessionId,
+      doctor: doctorDoc,
+    })
+      .populate("period")
+      .populate("patient")
+      .populate("doctor")
+      .populate({
+        path: "patient",
+        populate: { path: "user" },
+      });
+
+    if (!session) {
+      throw new NotFoundError(EnumStatusCode.NOT_FOUND, "Session not found");
+    }
+
+    // Check if session is already cancelled
+    if (
+      session.status === SessionStatus.CANCELLED ||
+      session.status === SessionStatus.CANCELLED_BY_DOCTOR ||
+      session.status === SessionStatus.CANCELLED_DUE_TO_TIME_OUT
+    ) {
+      throw new BadRequestError(
+        EnumStatusCode.BAD_REQUEST,
+        "Session is already cancelled"
+      );
+    }
+
+    // Make sure that the period has not passed
+    if (session.period.startTime < Date.now()) {
+      throw new BadRequestError(
+        EnumStatusCode.PERIOD_PASSED,
+        "Session has already started"
+      );
+    }
+
+    // Get the period
+    const period: IPeriodDocument | null = await PeriodModel.findOne({
+      _id: session.period._id,
+      isDeleted: false,
+    });
+
+    if (!period) {
+      throw new NotFoundError(
+        EnumStatusCode.PERIOD_NOT_FOUND,
+        "Period not found"
+      );
+    }
+
+    // Check if session was paid
+    const sessionWasPaid = session.status === SessionStatus.PAID;
+
+    // Update session status and free the period
+    session.status = SessionStatus.CANCELLED_BY_DOCTOR;
+    period.status = PeriodStatus.Available;
+
+    // Save both in a transaction
+    const sessionTransaction = await mongoose.startSession();
+    sessionTransaction.startTransaction();
+
+    try {
+      await session.save({ session: sessionTransaction });
+      await period.save({ session: sessionTransaction });
+      await sessionTransaction.commitTransaction();
+      sessionTransaction.endSession();
+    } catch (error) {
+      await sessionTransaction.abortTransaction();
+      sessionTransaction.endSession();
+      throw error;
+    }
+
+    // Initiate the refund if session was paid
+    if (sessionWasPaid) {
+      publishToTopicExchange<InitiateRefundEvent>({
+        exchange: Exchanges.DOCTA_EXCHANGE,
+        routingKey: RoutingKey.INITIATE_REFUND,
+        message: {
+          sessionId: session.id,
+          patientId: session.patient.id,
+          doctorId: session.doctor.id,
+          refundDirection: EnumRefundDirection.DOCTOR,
+        },
+      });
+    }
+    return new SessionDoctorOutputDto(session);
   };
 }

@@ -54,6 +54,13 @@ class SessionRouter {
       verifyRoles([EnumUserRole.DOCTOR]),
       this.controller.getDoctorSession
     );
+
+    this.router.patch(
+      "/doctor/:sessionId/cancel",
+      requireAuth,
+      verifyRoles([EnumUserRole.DOCTOR]),
+      this.controller.cancelSessionByDoctor
+    );
   }
 }
 
