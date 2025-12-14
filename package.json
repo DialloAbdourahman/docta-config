@@ -14,7 +14,7 @@
   "description": "",
   "dependencies": {
     "date-fns-tz": "^3.2.0",
-    "docta-package": "^1.2.99",
+    "docta-package": "^1.2.104",
     "dotenv": "^16.5.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1"
