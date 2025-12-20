@@ -395,7 +395,6 @@ export class SessionService {
 
     // Check if session is already cancelled
     if (
-      session.status === SessionStatus.CANCELLED ||
       session.status === SessionStatus.CANCELLED_BY_DOCTOR ||
       session.status === SessionStatus.CANCELLED_DUE_TO_TIME_OUT
     ) {
@@ -431,6 +430,7 @@ export class SessionService {
 
     // Update session status and free the period
     session.status = SessionStatus.CANCELLED_BY_DOCTOR;
+    session.cancelledAt = Date.now();
     period.status = PeriodStatus.Available;
 
     // Save both in a transaction
