@@ -113,6 +113,8 @@ export class SessionService {
         collectionPercentage: config.collectionPercentage,
         disbursementPercentage: config.disbursementPercentage,
       },
+      expireAt:
+        Date.now() + config.sessionPaymentTimeExpireInMinutes * 60 * 1000,
     });
 
     // Update the period

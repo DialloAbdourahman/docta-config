@@ -11,6 +11,7 @@ interface Config {
   platformPercentage: number;
   collectionPercentage: number;
   disbursementPercentage: number;
+  sessionPaymentTimeExpireInMinutes: number;
 }
 
 export const config: Config = {
@@ -22,4 +23,7 @@ export const config: Config = {
   platformPercentage: Number(process.env.PLATFORM_PERCENTAGE),
   collectionPercentage: Number(process.env.COLLECTION_PERCENTAGE),
   disbursementPercentage: Number(process.env.DISTRIBUTION_PERCENTAGE),
+  sessionPaymentTimeExpireInMinutes: Number(
+    process.env.SESSION_PAYMENT_TIME_EXPIRE_IN_MINS
+  ),
 };
