@@ -12,6 +12,7 @@ interface Config {
   collectionPercentage: number;
   disbursementPercentage: number;
   sessionPaymentTimeExpireInMinutes: number;
+  sessionCleanupCronJobIntervalInMinutes: number;
 }
 
 export const config: Config = {
@@ -25,5 +26,8 @@ export const config: Config = {
   disbursementPercentage: Number(process.env.DISTRIBUTION_PERCENTAGE),
   sessionPaymentTimeExpireInMinutes: Number(
     process.env.SESSION_PAYMENT_TIME_EXPIRE_IN_MINS
+  ),
+  sessionCleanupCronJobIntervalInMinutes: Number(
+    process.env.SESSION_CLEANUP_CRON_JOB_INTERVAL_IN_MINS
   ),
 };
