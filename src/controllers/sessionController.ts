@@ -149,11 +149,9 @@ export class SessionController {
     res: Response
   ): Promise<void> => {
     const sessionId = req.params.sessionId;
-    const session = await this.sessionService.cancelSessionByDirection({
+    const session = await this.sessionService.cancelSessionByDoctor({
       sessionId,
-      direction: EnumRefundDirection.DOCTOR,
       user: req.currentUser!,
-      cancelBeforeTimeInMins: config.doctorCanCancelBeforeTimeInMins,
     });
     res.status(200).json(
       OrchestrationResult.item<SessionDoctorOutputDto>({
@@ -169,11 +167,9 @@ export class SessionController {
     res: Response
   ): Promise<void> => {
     const sessionId = req.params.sessionId;
-    const session = await this.sessionService.cancelSessionByDirection({
+    const session = await this.sessionService.cancelSessionByPatient({
       sessionId,
-      direction: EnumRefundDirection.PATIENT,
       user: req.currentUser!,
-      cancelBeforeTimeInMins: config.patientCanCancelBeforeTimeInMins,
     });
     res.status(200).json(
       OrchestrationResult.item<SessionPatientOutputDto>({

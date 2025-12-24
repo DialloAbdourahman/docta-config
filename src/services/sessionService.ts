@@ -364,22 +364,17 @@ export class SessionService {
     return { sessions, totalItems };
   };
 
-  public cancelSessionByDirection = async ({
+  public cancelSessionByDoctor = async ({
     sessionId,
-    direction,
     user,
-    cancelBeforeTimeInMins,
   }: {
     sessionId: string;
-    direction: EnumRefundDirection;
     user: LoggedInUserTokenData;
-    cancelBeforeTimeInMins: number;
   }): Promise<ISessionDocument> => {
     // Verify the doctor exists
     const doctorDoc = (await DoctorModel.findOne({
       user: user.id,
     })) as IDoctorDocument;
-    ValidateInfo.validateDoctor(doctorDoc);
 
     // Get the session with populated period
     const session: ISessionDocument | null = await SessionModel.findOne({
@@ -411,10 +406,7 @@ export class SessionService {
     }
 
     // Check if a doctor is trying to cancel a session that hasn't been paid for.
-    if (
-      session.status !== EnumSessionStatus.PAID &&
-      direction === EnumRefundDirection.DOCTOR
-    ) {
+    if (session.status !== EnumSessionStatus.PAID) {
       throw new BadRequestError(
         EnumStatusCode.SESSION_NOT_PAID_FOR_DOCTOR_CANCELATION,
         "Session is not paid for to cancel by doctor"
@@ -432,7 +424,115 @@ export class SessionService {
     // Make sure that the cancellation window has not passed
     if (
       session.period.startTime <
-      Date.now() + cancelBeforeTimeInMins * 60 * 1000
+      Date.now() + config.doctorCanCancelBeforeTimeInMins * 60 * 1000
+    ) {
+      throw new BadRequestError(
+        EnumStatusCode.CANCELATION_WINDOW_PASSED,
+        "Cancellation window has passed"
+      );
+    }
+
+    // Get the period
+    const period: IPeriodDocument | null = await PeriodModel.findOne({
+      _id: session.period._id,
+      isDeleted: false,
+    });
+
+    if (!period) {
+      throw new NotFoundError(
+        EnumStatusCode.PERIOD_NOT_FOUND,
+        "Period not found"
+      );
+    }
+
+    // Update session status and free the period
+    session.status = EnumSessionStatus.CANCELLED_BY_DOCTOR;
+    session.cancelledAt = Date.now();
+    period.status = PeriodStatus.Available;
+
+    // Save both in a transaction
+    const sessionTransaction = await mongoose.startSession();
+    sessionTransaction.startTransaction();
+
+    try {
+      await session.save({ session: sessionTransaction });
+      await period.save({ session: sessionTransaction });
+      await sessionTransaction.commitTransaction();
+      sessionTransaction.endSession();
+    } catch (error) {
+      await sessionTransaction.abortTransaction();
+      sessionTransaction.endSession();
+      throw error;
+    }
+
+    // Initiate the refund if session was paid
+    publishToTopicExchange<InitiateRefundEvent>({
+      exchange: Exchanges.DOCTA_EXCHANGE,
+      routingKey: RoutingKey.INITIATE_REFUND,
+      message: {
+        sessionId: session.id,
+        patientId: session.patient.id,
+        doctorId: session.doctor.id,
+        refundDirection: EnumRefundDirection.DOCTOR,
+      },
+    });
+    return session;
+  };
+
+  public cancelSessionByPatient = async ({
+    sessionId,
+    user,
+  }: {
+    sessionId: string;
+    user: LoggedInUserTokenData;
+  }): Promise<ISessionDocument> => {
+    // Verify the doctor exists
+
+    const patientDoc = (await PatientModel.findOne({
+      user: user.id,
+    })) as IPatientDocument;
+
+    // Get the session with populated period
+    const session: ISessionDocument | null = await SessionModel.findOne({
+      _id: sessionId,
+      patient: patientDoc,
+    })
+      .populate("period")
+      .populate("patient")
+      .populate("doctor")
+      .populate({
+        path: "patient",
+        populate: { path: "user" },
+      });
+
+    if (!session) {
+      throw new NotFoundError(EnumStatusCode.NOT_FOUND, "Session not found");
+    }
+
+    // Check if session is already cancelled
+    if (
+      session.status === EnumSessionStatus.CANCELLED_BY_DOCTOR ||
+      session.status === EnumSessionStatus.CANCELLED_BY_PATIENT ||
+      session.status === EnumSessionStatus.CANCELLED_DUE_TO_TIME_OUT
+    ) {
+      throw new BadRequestError(
+        EnumStatusCode.SESSION_CANCELLED_ALREADY,
+        "Session is already cancelled"
+      );
+    }
+
+    // Make sure that the period has not passed
+    if (session.period.startTime < Date.now()) {
+      throw new BadRequestError(
+        EnumStatusCode.PERIOD_PASSED,
+        "Session has already started"
+      );
+    }
+
+    // Make sure that the cancellation window has not passed
+    if (
+      session.period.startTime <
+      Date.now() + config.patientCanCancelBeforeTimeInMins * 60 * 1000
     ) {
       throw new BadRequestError(
         EnumStatusCode.CANCELATION_WINDOW_PASSED,
@@ -457,10 +557,7 @@ export class SessionService {
     const sessionWasPaid = session.status === EnumSessionStatus.PAID;
 
     // Update session status and free the period
-    session.status =
-      direction === EnumRefundDirection.DOCTOR
-        ? EnumSessionStatus.CANCELLED_BY_DOCTOR
-        : EnumSessionStatus.CANCELLED_BY_PATIENT;
+    session.status = EnumSessionStatus.CANCELLED_BY_PATIENT;
     session.cancelledAt = Date.now();
     period.status = PeriodStatus.Available;
 
@@ -488,7 +585,7 @@ export class SessionService {
           sessionId: session.id,
           patientId: session.patient.id,
           doctorId: session.doctor.id,
-          refundDirection: direction,
+          refundDirection: EnumRefundDirection.PATIENT,
         },
       });
     }
