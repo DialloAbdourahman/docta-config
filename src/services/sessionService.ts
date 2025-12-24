@@ -217,6 +217,8 @@ export class SessionService {
       ]),
     ]);
 
+    console.log(docs);
+
     const totalItems = countResult[0]?.totalItems ?? 0;
     const sessions = docs as ISessionDocument[];
 
@@ -315,31 +317,31 @@ export class SessionService {
       },
       { $unwind: "$period" },
 
-      // Join patient
-      {
-        $lookup: {
-          from: "patients",
-          let: { patientId: "$patient" }, // reference session's patient
-          pipeline: [
-            { $match: { $expr: { $eq: ["$_id", "$$patientId"] } } },
+      // // Join patient
+      // {
+      //   $lookup: {
+      //     from: "patients",
+      //     let: { patientId: "$patient" }, // reference session's patient
+      //     pipeline: [
+      //       { $match: { $expr: { $eq: ["$_id", "$$patientId"] } } },
 
-            // Join user inside patient
-            {
-              $lookup: {
-                from: "users",
-                let: { userId: "$user" },
-                pipeline: [
-                  { $match: { $expr: { $eq: ["$_id", "$$userId"] } } },
-                ],
-                as: "user",
-              },
-            },
-            { $unwind: "$user" }, // unwind user inside patient
-          ],
-          as: "patient",
-        },
-      },
-      { $unwind: "$patient" }, // unwind patient
+      //       // Join user inside patient
+      //       {
+      //         $lookup: {
+      //           from: "users",
+      //           let: { userId: "$user" },
+      //           pipeline: [
+      //             { $match: { $expr: { $eq: ["$_id", "$$userId"] } } },
+      //           ],
+      //           as: "user",
+      //         },
+      //       },
+      //       { $unwind: "$user" }, // unwind user inside patient
+      //     ],
+      //     as: "patient",
+      //   },
+      // },
+      // { $unwind: "$patient" }, // unwind patient
 
       { $sort: { "period.startTime": 1 } },
     ];
