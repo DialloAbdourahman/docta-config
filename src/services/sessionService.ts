@@ -9,15 +9,12 @@ import {
   ISessionDocument,
   NotFoundError,
   PatientModel,
-  PatientPublicOutputDto,
   PeriodModel,
   PeriodStatus,
   publishToTopicExchange,
   RoutingKey,
-  SessionDoctorOutputDto,
   SessionModel,
-  SessionPatientOutputDto,
-  SessionStatus,
+  EnumSessionStatus,
   ValidateInfo,
 } from "docta-package";
 import { IDoctorDocument, DoctorModel } from "docta-package";
@@ -30,7 +27,7 @@ export class SessionService {
   public bookSession = async (
     periodId: string,
     user: LoggedInUserTokenData
-  ): Promise<SessionPatientOutputDto> => {
+  ): Promise<ISessionDocument> => {
     // Get the patient
     const patient: IPatientDocument | null = await PatientModel.findOne({
       user: user.id,
@@ -137,13 +134,13 @@ export class SessionService {
 
     console.log(session);
 
-    return new SessionPatientOutputDto(session);
+    return session;
   };
 
   public getPatientSession = async (
     sessionId: string,
     user: LoggedInUserTokenData
-  ): Promise<SessionPatientOutputDto> => {
+  ): Promise<ISessionDocument> => {
     // Get the patient
     const patient: IPatientDocument | null = await PatientModel.findOne({
       user: user.id,
@@ -168,7 +165,7 @@ export class SessionService {
 
     console.log(session);
 
-    return new SessionPatientOutputDto(session);
+    return session;
   };
 
   public getPatientSessionsPaginated = async (
@@ -176,7 +173,7 @@ export class SessionService {
     itemsPerPage: number,
     user: LoggedInUserTokenData
   ): Promise<{
-    items: SessionPatientOutputDto[];
+    sessions: ISessionDocument[];
     totalItems: number;
   }> => {
     // Get the patient
@@ -221,18 +218,15 @@ export class SessionService {
     ]);
 
     const totalItems = countResult[0]?.totalItems ?? 0;
+    const sessions = docs as ISessionDocument[];
 
-    const items = (docs as ISessionDocument[]).map(
-      (s) => new SessionPatientOutputDto(s)
-    );
-
-    return { items, totalItems };
+    return { sessions, totalItems };
   };
 
   public getDoctorSession = async (
     sessionId: string,
     user: LoggedInUserTokenData
-  ): Promise<SessionDoctorOutputDto> => {
+  ): Promise<ISessionDocument> => {
     // Verify the doctor exists
     const doctorDoc = (await DoctorModel.findOne({
       user: user.id,
@@ -255,13 +249,13 @@ export class SessionService {
       throw new NotFoundError(EnumStatusCode.NOT_FOUND, "Session not found");
     }
 
-    return new SessionDoctorOutputDto(session);
+    return session;
   };
 
   public getPatientFromSession = async (
     sessionId: string,
     user: LoggedInUserTokenData
-  ): Promise<PatientPublicOutputDto> => {
+  ): Promise<ISessionDocument> => {
     // Verify the doctor exists
     const doctorDoc = (await DoctorModel.findOne({
       user: user.id,
@@ -281,7 +275,7 @@ export class SessionService {
       throw new NotFoundError(EnumStatusCode.NOT_FOUND, "Session not found");
     }
 
-    return new PatientPublicOutputDto(session.patient);
+    return session;
   };
 
   public getDoctorSessionsPaginated = async (
@@ -289,7 +283,7 @@ export class SessionService {
     itemsPerPage: number,
     user: LoggedInUserTokenData
   ): Promise<{
-    items: SessionDoctorOutputDto[];
+    sessions: ISessionDocument[];
     totalItems: number;
   }> => {
     // Verify the doctor exists
@@ -300,7 +294,12 @@ export class SessionService {
 
     const skip = (page - 1) * itemsPerPage;
 
-    const filter = { doctor: doctorDoc._id };
+    const filter = {
+      doctor: doctorDoc._id,
+      status: {
+        $in: [EnumSessionStatus.PAID, EnumSessionStatus.CANCELLED_BY_DOCTOR],
+      },
+    };
 
     const aggregationPipeline: any[] = [
       { $match: filter },
@@ -359,19 +358,23 @@ export class SessionService {
 
     console.log(docs);
 
+    const sessions = docs as ISessionDocument[];
     const totalItems = countResult[0]?.totalItems ?? 0;
 
-    const items = (docs as ISessionDocument[]).map(
-      (s) => new SessionDoctorOutputDto(s)
-    );
-
-    return { items, totalItems };
+    return { sessions, totalItems };
   };
 
-  public cancelSessionByDoctor = async (
-    sessionId: string,
-    user: LoggedInUserTokenData
-  ): Promise<SessionDoctorOutputDto> => {
+  public cancelSessionByDirection = async ({
+    sessionId,
+    direction,
+    user,
+    cancelBeforeTimeInMins,
+  }: {
+    sessionId: string;
+    direction: EnumRefundDirection;
+    user: LoggedInUserTokenData;
+    cancelBeforeTimeInMins: number;
+  }): Promise<ISessionDocument> => {
     // Verify the doctor exists
     const doctorDoc = (await DoctorModel.findOne({
       user: user.id,
@@ -397,12 +400,24 @@ export class SessionService {
 
     // Check if session is already cancelled
     if (
-      session.status === SessionStatus.CANCELLED_BY_DOCTOR ||
-      session.status === SessionStatus.CANCELLED_DUE_TO_TIME_OUT
+      session.status === EnumSessionStatus.CANCELLED_BY_DOCTOR ||
+      session.status === EnumSessionStatus.CANCELLED_BY_PATIENT ||
+      session.status === EnumSessionStatus.CANCELLED_DUE_TO_TIME_OUT
     ) {
       throw new BadRequestError(
-        EnumStatusCode.BAD_REQUEST,
+        EnumStatusCode.SESSION_CANCELLED_ALREADY,
         "Session is already cancelled"
+      );
+    }
+
+    // Check if a doctor is trying to cancel a session that hasn't been paid for.
+    if (
+      session.status !== EnumSessionStatus.PAID &&
+      direction === EnumRefundDirection.DOCTOR
+    ) {
+      throw new BadRequestError(
+        EnumStatusCode.SESSION_NOT_PAID_FOR_DOCTOR_CANCELATION,
+        "Session is not paid for to cancel by doctor"
       );
     }
 
@@ -411,6 +426,17 @@ export class SessionService {
       throw new BadRequestError(
         EnumStatusCode.PERIOD_PASSED,
         "Session has already started"
+      );
+    }
+
+    // Make sure that the cancellation window has not passed
+    if (
+      session.period.startTime <
+      Date.now() + cancelBeforeTimeInMins * 60 * 1000
+    ) {
+      throw new BadRequestError(
+        EnumStatusCode.CANCELATION_WINDOW_PASSED,
+        "Cancellation window has passed"
       );
     }
 
@@ -428,10 +454,13 @@ export class SessionService {
     }
 
     // Check if session was paid
-    const sessionWasPaid = session.status === SessionStatus.PAID;
+    const sessionWasPaid = session.status === EnumSessionStatus.PAID;
 
     // Update session status and free the period
-    session.status = SessionStatus.CANCELLED_BY_DOCTOR;
+    session.status =
+      direction === EnumRefundDirection.DOCTOR
+        ? EnumSessionStatus.CANCELLED_BY_DOCTOR
+        : EnumSessionStatus.CANCELLED_BY_PATIENT;
     session.cancelledAt = Date.now();
     period.status = PeriodStatus.Available;
 
@@ -459,10 +488,10 @@ export class SessionService {
           sessionId: session.id,
           patientId: session.patient.id,
           doctorId: session.doctor.id,
-          refundDirection: EnumRefundDirection.DOCTOR,
+          refundDirection: direction,
         },
       });
     }
-    return new SessionDoctorOutputDto(session);
+    return session;
   };
 }

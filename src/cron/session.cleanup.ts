@@ -3,7 +3,7 @@ import { config } from "../config";
 import {
   SessionModel,
   ISessionDocument,
-  SessionStatus,
+  EnumSessionStatus,
   PeriodModel,
   IPeriodDocument,
   PeriodStatus,
@@ -18,7 +18,7 @@ async function runEvery15Minutes() {
   // Get all sessions whose expireAt has passed
   const expiredSessions: ISessionDocument[] = await SessionModel.find({
     expiresAt: { $lt: Date.now() },
-    status: SessionStatus.CREATED,
+    status: EnumSessionStatus.CREATED,
   }).populate("period");
 
   logger.info(`Found ${expiredSessions.length} expired sessions`);
@@ -47,7 +47,7 @@ async function runEvery15Minutes() {
         filter: { _id: session._id },
         update: {
           $set: {
-            status: SessionStatus.CANCELLED_DUE_TO_TIME_OUT,
+            status: EnumSessionStatus.CANCELLED_DUE_TO_TIME_OUT,
             cancelledAt: Date.now(),
           },
         },

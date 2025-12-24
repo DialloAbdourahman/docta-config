@@ -1,12 +1,14 @@
 import { Request, Response } from "express";
 import { SessionService } from "../services/sessionService";
 import {
+  EnumRefundDirection,
   OrchestrationResult,
   PatientPublicOutputDto,
   SessionDoctorOutputDto,
   SessionPatientOutputDto,
 } from "docta-package";
 import { EnumStatusCode } from "docta-package";
+import { config } from "../config";
 
 export class SessionController {
   private sessionService: SessionService;
@@ -17,7 +19,7 @@ export class SessionController {
 
   public bookSession = async (req: Request, res: Response): Promise<void> => {
     const periodId = req.params.periodId;
-    const result = await this.sessionService.bookSession(
+    const session = await this.sessionService.bookSession(
       periodId,
       req.currentUser!
     );
@@ -25,7 +27,7 @@ export class SessionController {
       OrchestrationResult.item<SessionPatientOutputDto>({
         code: EnumStatusCode.CREATED_SUCCESSFULLY,
         message: "Session created successfully.",
-        data: result,
+        data: new SessionPatientOutputDto(session),
       })
     );
   };
@@ -35,7 +37,7 @@ export class SessionController {
     res: Response
   ): Promise<void> => {
     const sessionId = req.params.sessionId;
-    const result = await this.sessionService.getPatientSession(
+    const session = await this.sessionService.getPatientSession(
       sessionId,
       req.currentUser!
     );
@@ -43,7 +45,7 @@ export class SessionController {
       OrchestrationResult.item<SessionPatientOutputDto>({
         code: EnumStatusCode.RECOVERED_SUCCESSFULLY,
         message: "Session created successfully.",
-        data: result,
+        data: new SessionPatientOutputDto(session),
       })
     );
   };
@@ -53,7 +55,7 @@ export class SessionController {
     res: Response
   ): Promise<void> => {
     const sessionId = req.params.sessionId;
-    const result = await this.sessionService.getDoctorSession(
+    const session = await this.sessionService.getDoctorSession(
       sessionId,
       req.currentUser!
     );
@@ -61,7 +63,7 @@ export class SessionController {
       OrchestrationResult.item<SessionDoctorOutputDto>({
         code: EnumStatusCode.RECOVERED_SUCCESSFULLY,
         message: "Session created successfully.",
-        data: result,
+        data: new SessionDoctorOutputDto(session),
       })
     );
   };
@@ -71,7 +73,7 @@ export class SessionController {
     res: Response
   ): Promise<void> => {
     const sessionId = req.params.sessionId;
-    const result = await this.sessionService.getPatientFromSession(
+    const session = await this.sessionService.getPatientFromSession(
       sessionId,
       req.currentUser!
     );
@@ -79,7 +81,7 @@ export class SessionController {
       OrchestrationResult.item<PatientPublicOutputDto>({
         code: EnumStatusCode.RECOVERED_SUCCESSFULLY,
         message: "Session created successfully.",
-        data: result,
+        data: new PatientPublicOutputDto(session.patient),
       })
     );
   };
@@ -94,7 +96,7 @@ export class SessionController {
       parseInt(String(req.query.itemsPerPage || "10"), 10)
     );
 
-    const { items, totalItems } =
+    const { sessions, totalItems } =
       await this.sessionService.getPatientSessionsPaginated(
         page,
         itemsPerPage,
@@ -105,7 +107,7 @@ export class SessionController {
       OrchestrationResult.paginated<SessionPatientOutputDto>({
         code: EnumStatusCode.RECOVERED_SUCCESSFULLY,
         message: "Sessions fetched successfully.",
-        data: items,
+        data: sessions.map((s) => new SessionPatientOutputDto(s)),
         totalItems,
         itemsPerPage,
         page,
@@ -123,7 +125,7 @@ export class SessionController {
       parseInt(String(req.query.itemsPerPage || "10"), 10)
     );
 
-    const { items, totalItems } =
+    const { sessions, totalItems } =
       await this.sessionService.getDoctorSessionsPaginated(
         page,
         itemsPerPage,
@@ -134,7 +136,7 @@ export class SessionController {
       OrchestrationResult.paginated<SessionDoctorOutputDto>({
         code: EnumStatusCode.RECOVERED_SUCCESSFULLY,
         message: "Sessions fetched successfully.",
-        data: items,
+        data: sessions.map((s) => new SessionDoctorOutputDto(s)),
         totalItems,
         itemsPerPage,
         page,
@@ -147,15 +149,37 @@ export class SessionController {
     res: Response
   ): Promise<void> => {
     const sessionId = req.params.sessionId;
-    const result = await this.sessionService.cancelSessionByDoctor(
+    const session = await this.sessionService.cancelSessionByDirection({
       sessionId,
-      req.currentUser!
-    );
+      direction: EnumRefundDirection.DOCTOR,
+      user: req.currentUser!,
+      cancelBeforeTimeInMins: config.doctorCanCancelBeforeTimeInMins,
+    });
     res.status(200).json(
       OrchestrationResult.item<SessionDoctorOutputDto>({
         code: EnumStatusCode.UPDATED_SUCCESSFULLY,
         message: "Session cancelled successfully.",
-        data: result,
+        data: new SessionDoctorOutputDto(session),
+      })
+    );
+  };
+
+  public cancelSessionByPatient = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    const sessionId = req.params.sessionId;
+    const session = await this.sessionService.cancelSessionByDirection({
+      sessionId,
+      direction: EnumRefundDirection.PATIENT,
+      user: req.currentUser!,
+      cancelBeforeTimeInMins: config.patientCanCancelBeforeTimeInMins,
+    });
+    res.status(200).json(
+      OrchestrationResult.item<SessionPatientOutputDto>({
+        code: EnumStatusCode.UPDATED_SUCCESSFULLY,
+        message: "Session cancelled successfully.",
+        data: new SessionPatientOutputDto(session),
       })
     );
   };

@@ -13,6 +13,8 @@ interface Config {
   disbursementPercentage: number;
   sessionPaymentTimeExpireInMinutes: number;
   sessionCleanupCronJobIntervalInMinutes: number;
+  doctorCanCancelBeforeTimeInMins: number;
+  patientCanCancelBeforeTimeInMins: number;
 }
 
 export const config: Config = {
@@ -29,5 +31,11 @@ export const config: Config = {
   ),
   sessionCleanupCronJobIntervalInMinutes: Number(
     process.env.SESSION_CLEANUP_CRON_JOB_INTERVAL_IN_MINS
+  ),
+  doctorCanCancelBeforeTimeInMins: Number(
+    process.env.DOCTOR_CAN_CANCEL_BEFORE_TIME_IN_MINS
+  ),
+  patientCanCancelBeforeTimeInMins: Number(
+    process.env.PATIENT_CAN_CANCEL_BEFORE_TIME_IN_MINS
   ),
 };
